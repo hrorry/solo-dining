@@ -9,8 +9,10 @@ void main() async {
   // .envファイルが存在する場合のみ読み込み（ローカル開発用）
   try {
     await dotenv.load(fileName: ".env");
+    print('Loaded .env file successfully');
   } catch (e) {
-    print('No .env file found, using environment variables: $e');
+    print('No .env file found, using dart-define environment variables');
+    // Vercel環境では.envファイルが存在しないため、これは正常
   }
 
   runApp(const MyApp());

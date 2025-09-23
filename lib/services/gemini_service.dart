@@ -8,12 +8,18 @@ class GeminiService {
     // ビルド時の環境変数をチェック（Vercel用）
     const apiKey = String.fromEnvironment('GEMINI_API_KEY');
 
-    // ローカル開発用の.envファイルもチェック
-    final envApiKey = dotenv.env['GEMINI_API_KEY'];
+    // ローカル開発用の.envファイルもチェック（安全にアクセス）
+    String? envApiKey;
+    try {
+      envApiKey = dotenv.env['GEMINI_API_KEY'];
+    } catch (e) {
+      print('dotenv not available, using dart-define only');
+      envApiKey = null;
+    }
 
-    final finalApiKey = apiKey.isNotEmpty ? apiKey : envApiKey;
+    final finalApiKey = apiKey.isNotEmpty ? apiKey : (envApiKey ?? '');
 
-    if (finalApiKey == null || finalApiKey.isEmpty) {
+    if (finalApiKey.isEmpty) {
       throw Exception('GEMINI_API_KEY not found. Set it in .env file or build environment');
     }
 
