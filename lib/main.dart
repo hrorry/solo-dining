@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'screens/search_result_screen.dart';
+import 'services/gemini_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   runApp(const MyApp());
 }
 
@@ -32,6 +37,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _locationController = TextEditingController();
+  final GeminiService _geminiService = GeminiService();
+  bool _isTestingGemini = false;
 
   @override
   void dispose() {
@@ -42,10 +49,60 @@ class _HomeScreenState extends State<HomeScreen> {
   void _searchRestaurants() {
     String location = _locationController.text.trim();
     if (location.isNotEmpty) {
-      // TODO: レストラン検索ロジックを実装
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('「$location」周辺のお店を検索中...')),
+      // 結果画面に遷移
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => SearchResultScreen(location: location),
+        ),
       );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('場所を入力してください')),
+      );
+    }
+  }
+
+  Future<void> _testGeminiAPI() async {
+    setState(() {
+      _isTestingGemini = true;
+    });
+
+    try {
+      final response = await _geminiService.testConnection();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gemini API接続成功: $response'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Gemini API Error: $e'); // デバッグ用
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gemini API接続失敗: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 10), // 長めに表示
+            action: SnackBarAction(
+              label: 'コピー',
+              textColor: Colors.white,
+              onPressed: () {
+                // エラーをコンソールに出力
+                print('Error details: $e');
+              },
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTestingGemini = false;
+        });
+      }
     }
   }
 
@@ -89,7 +146,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(fontSize: 18),
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 20),
+            // Gemini API テストボタン（Phase 1用）
+            OutlinedButton.icon(
+              onPressed: _isTestingGemini ? null : _testGeminiAPI,
+              icon: _isTestingGemini
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.psychology),
+              label: Text(_isTestingGemini ? 'テスト中...' : 'Gemini API テスト'),
+            ),
+            const SizedBox(height: 20),
             Expanded(
               child: Card(
                 child: Padding(

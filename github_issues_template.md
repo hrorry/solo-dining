@@ -1,38 +1,5 @@
 # Solo Dining App - GitHub Issues テンプレート
 
-## 🚀 Phase 1: 基盤構築
-
-**Title**: 🚀 Phase 1: 基盤構築
-**Labels**: enhancement, Phase 1
-
-### 概要
-ソロダイニングアプリの基盤となる環境構築とAPI動作確認を行う
-
-### 実装内容
-- [ ] Flutter Web対応の確認・有効化
-- [ ] プロジェクト環境セットアップ（必要なパッケージの追加）
-- [ ] Google Maps API & Places APIの設定・動作確認
-- [ ] Gemini APIの設定・動作確認
-- [ ] 基本的な画面遷移の実装（メイン画面 → 結果画面 → 詳細画面）
-
-### 必要なパッケージ
-- `google_maps_flutter`
-- `geolocator`
-- `http` または `dio`
-- `google_generative_ai`
-- `riverpod`
-
-### 確認事項
-- Web/Mobile両方でAPIが正常動作するか
-- 各APIのレート制限・料金体系の確認
-
-### 完了条件
-- 全APIが動作確認済み
-- 基本的な画面遷移が実装済み
-- 開発環境が整備済み
-
----
-
 ## 🗺️ Phase 2: 位置情報・検索機能
 
 **Title**: 🗺️ Phase 2: 位置情報・検索機能
