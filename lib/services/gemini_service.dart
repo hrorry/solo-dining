@@ -5,14 +5,21 @@ class GeminiService {
   late final GenerativeModel _model;
 
   GeminiService() {
-    final apiKey = dotenv.env['GEMINI_API_KEY'];
-    if (apiKey == null || apiKey.isEmpty) {
-      throw Exception('GEMINI_API_KEY not found in .env file');
+    // ビルド時の環境変数をチェック（Vercel用）
+    const apiKey = String.fromEnvironment('GEMINI_API_KEY');
+
+    // ローカル開発用の.envファイルもチェック
+    final envApiKey = dotenv.env['GEMINI_API_KEY'];
+
+    final finalApiKey = apiKey.isNotEmpty ? apiKey : envApiKey;
+
+    if (finalApiKey == null || finalApiKey.isEmpty) {
+      throw Exception('GEMINI_API_KEY not found. Set it in .env file or build environment');
     }
 
     _model = GenerativeModel(
       model: 'gemini-1.5-flash',  // 最新モデルに変更
-      apiKey: apiKey,
+      apiKey: finalApiKey,
     );
   }
 
