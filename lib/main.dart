@@ -5,7 +5,14 @@ import 'services/gemini_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+
+  // .envファイルが存在する場合のみ読み込み（ローカル開発用）
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print('No .env file found, using environment variables: $e');
+  }
+
   runApp(const MyApp());
 }
 
