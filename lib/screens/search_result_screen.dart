@@ -3,16 +3,18 @@ import 'restaurant_detail_screen.dart';
 
 class SearchResultScreen extends StatelessWidget {
   final String location;
+  final List<Map<String, dynamic>>? restaurants;
 
   const SearchResultScreen({
     super.key,
     required this.location,
+    this.restaurants,
   });
 
   @override
   Widget build(BuildContext context) {
-    // ダミーデータ（Phase 2で実際のAPIデータに置き換え）
-    final restaurants = [
+    // 実際のAPIデータを使用（渡されなかった場合はダミーデータ）
+    final restaurantList = restaurants ?? [
       {
         'name': 'カフェ・ド・ソロ',
         'address': '東京都渋谷区1-1-1',
@@ -48,16 +50,16 @@ class SearchResultScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             color: Theme.of(context).colorScheme.secondaryContainer,
             child: Text(
-              '一人食事におすすめのお店 ${restaurants.length}件',
+              '一人食事におすすめのお店 ${restaurantList.length}件',
               style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: restaurants.length,
+              itemCount: restaurantList.length,
               itemBuilder: (context, index) {
-                final restaurant = restaurants[index];
+                final restaurant = restaurantList[index];
                 return Card(
                   margin: const EdgeInsets.symmetric(
                     horizontal: 16,
