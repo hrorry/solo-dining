@@ -1,0 +1,15 @@
+{
+  "buildCommand": "flutter build web",
+  "outputDirectory": "build/web",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
+  "env": {
+    "PLACES_API_KEY": "@places-api-key",
+    "GEMINI_API_KEY": "@gemini-api-key"
+  }
+}

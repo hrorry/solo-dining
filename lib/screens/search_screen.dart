@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:location/location.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
 import '../services/places_service.dart';
 import 'search_result_screen.dart';
@@ -18,7 +18,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   bool _isLoadingLocation = false;
   bool _isSearching = false;
-  LocationData? _currentLocation;
+  Position? _currentLocation;
   String? _currentAddress;
 
   @override
@@ -40,11 +40,18 @@ class _SearchScreenState extends State<SearchScreen> {
           _currentLocation = location;
         });
 
-        // 緯度経度から住所を取得
-        final address = await _locationService.getAddressFromCoordinates(
-          location.latitude!,
-          location.longitude!,
-        );
+        // 緯度経度から住所を取得（Web環境では失敗する可能性があるので try-catch）
+        String address = '現在地 (${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)})';
+
+        try {
+          final geocodedAddress = await _locationService.getAddressFromCoordinates(location.latitude, location.longitude);
+          if (geocodedAddress.isNotEmpty) {
+            address = geocodedAddress;
+          }
+        } catch (e) {
+          // 住所変換に失敗しても、緯度経度表示で続行
+          print('住所変換失敗（緯度経度で続行）: $e');
+        }
 
         if (mounted) {
           setState(() {
@@ -52,24 +59,16 @@ class _SearchScreenState extends State<SearchScreen> {
             _locationController.text = address;
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('現在地を取得しました'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('現在地を取得しました'), backgroundColor: Colors.green, duration: Duration(seconds: 2)));
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('現在地の取得に失敗しました: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('現在地の取得に失敗しました: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 3)));
       }
     } finally {
       if (mounted) {
@@ -85,12 +84,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final query = _locationController.text.trim();
 
     if (query.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('場所を入力するか、現在地を取得してください'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('場所を入力するか、現在地を取得してください'), duration: Duration(seconds: 2)));
       return;
     }
 
@@ -101,61 +95,45 @@ class _SearchScreenState extends State<SearchScreen> {
     try {
       List<Map<String, dynamic>> restaurants = [];
 
-      // 現在地が取得済みの場合は現在地周辺を検索
+      // Vercel Function経由で統一的にPlaces APIを呼び出す
       if (_currentLocation != null) {
+        // 現在地を使って検索
         restaurants = await _placesService.searchNearbyRestaurants(
-          latitude: _currentLocation!.latitude!,
-          longitude: _currentLocation!.longitude!,
-          radius: 1500, // 1.5km範囲
+          latitude: _currentLocation!.latitude,
+          longitude: _currentLocation!.longitude,
+          radius: 1500,
         );
       } else {
-        // テキスト検索を実行
-        // まず住所から緯度経度を取得してから検索
+        // 入力された場所から緯度経度を取得して検索
         try {
-          final coordinates =
-              await _locationService.getCoordinatesFromAddress(query);
+          final coordinates = await _locationService.getCoordinatesFromAddress(query);
           restaurants = await _placesService.searchNearbyRestaurants(
             latitude: coordinates['latitude']!,
             longitude: coordinates['longitude']!,
-            radius: 1500,
+            radius: 2000,
           );
         } catch (e) {
-          // 住所変換に失敗した場合はテキスト検索にフォールバック
-          restaurants = await _placesService.searchRestaurantsByText(
-            query: query,
-          );
+          // テキスト検索にフォールバック（TODO: 後で実装）
+          print('住所から緯度経度への変換に失敗: $e');
+          rethrow;
         }
       }
 
       if (mounted) {
         if (restaurants.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('該当する店舗が見つかりませんでした'),
-              duration: Duration(seconds: 2),
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('該当する店舗が見つかりませんでした'), duration: Duration(seconds: 2)));
         } else {
           // 検索結果画面へ遷移
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => SearchResultScreen(
-                location: query,
-                restaurants: restaurants,
-              ),
+              builder: (context) => SearchResultScreen(location: query, restaurants: restaurants),
             ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('検索に失敗しました: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('検索に失敗しました: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 3)));
       }
     } finally {
       if (mounted) {
@@ -184,10 +162,10 @@ class _SearchScreenState extends State<SearchScreen> {
               Text(
                 '一人でも安心して\n行けるお店を見つけよう',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: const Color(0xFF8B7355), // ナチュラルなブラウン
-                      fontWeight: FontWeight.bold,
-                      height: 1.5,
-                    ),
+                  color: const Color(0xFF8B7355), // ナチュラルなブラウン
+                  fontWeight: FontWeight.bold,
+                  height: 1.5,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
@@ -197,37 +175,17 @@ class _SearchScreenState extends State<SearchScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFAF8F3),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFFE8DCC8),
-                    width: 1,
-                  ),
+                  border: Border.all(color: const Color(0xFFE8DCC8), width: 1),
                 ),
                 child: ListTile(
                   leading: Icon(
                     Icons.my_location,
-                    color: _isLoadingLocation
-                        ? Colors.grey
-                        : const Color(0xFF6B8E23), // オリーブグリーン
+                    color: _isLoadingLocation ? Colors.grey : const Color(0xFF6B8E23), // オリーブグリーン
                   ),
-                  title: Text(
-                    _currentAddress ?? '現在地を取得',
-                    style: TextStyle(
-                      color: _currentAddress != null
-                          ? const Color(0xFF5D4E37)
-                          : Colors.grey[600],
-                    ),
-                  ),
+                  title: Text(_currentAddress ?? '現在地を取得', style: TextStyle(color: _currentAddress != null ? const Color(0xFF5D4E37) : Colors.grey[600])),
                   trailing: _isLoadingLocation
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: Colors.grey[400],
-                        ),
+                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
                   onTap: _isLoadingLocation ? null : _getCurrentLocation,
                 ),
               ),
@@ -240,10 +198,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   Expanded(child: Divider(color: Colors.grey[300])),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'または',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
+                    child: Text('または', style: TextStyle(color: Colors.grey[600])),
                   ),
                   Expanded(child: Divider(color: Colors.grey[300])),
                 ],
@@ -257,10 +212,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 decoration: InputDecoration(
                   labelText: '場所を入力',
                   hintText: '駅名、住所、ホテル名など...',
-                  prefixIcon: const Icon(
-                    Icons.location_on,
-                    color: Color(0xFF8B7355),
-                  ),
+                  prefixIcon: const Icon(Icons.location_on, color: Color(0xFF8B7355)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: Color(0xFFE8DCC8)),
@@ -271,8 +223,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: Color(0xFF8B7355), width: 2),
+                    borderSide: const BorderSide(color: Color(0xFF8B7355), width: 2),
                   ),
                   filled: true,
                   fillColor: const Color(0xFFFAF8F3),
@@ -289,28 +240,16 @@ class _SearchScreenState extends State<SearchScreen> {
                   backgroundColor: const Color(0xFF8B7355),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 2,
                 ),
                 child: _isSearching
                     ? const SizedBox(
                         width: 24,
                         height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
+                        child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
                       )
-                    : const Text(
-                        'お店を探す',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    : const Text('お店を探す', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
 
               const SizedBox(height: 40),
@@ -321,25 +260,15 @@ class _SearchScreenState extends State<SearchScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFAF8F3),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFFE8DCC8),
-                    width: 1,
-                  ),
+                  border: Border.all(color: const Color(0xFFE8DCC8), width: 1),
                 ),
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.restaurant_menu,
-                      size: 48,
-                      color: const Color(0xFF8B7355),
-                    ),
+                    Icon(Icons.restaurant_menu, size: 48, color: const Color(0xFF8B7355)),
                     const SizedBox(height: 16),
                     Text(
                       '検索機能',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: const Color(0xFF5D4E37),
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(color: const Color(0xFF5D4E37), fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -347,10 +276,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       '• Google Mapのコメントを分析\n'
                       '• カウンター席のあるお店を重視\n'
                       '• 口コミの雰囲気をAIが判定',
-                      style: TextStyle(
-                        color: const Color(0xFF6B5D4F),
-                        height: 1.8,
-                      ),
+                      style: TextStyle(color: const Color(0xFF6B5D4F), height: 1.8),
                       textAlign: TextAlign.left,
                     ),
                   ],

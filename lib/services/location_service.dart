@@ -1,36 +1,35 @@
-import 'package:location/location.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geocoding;
 
 class LocationService {
-  final Location _location = Location();
-
   // 現在地の緯度経度を取得
-  Future<LocationData?> getCurrentLocation() async {
+  Future<Position?> getCurrentLocation() async {
     bool serviceEnabled;
-    PermissionStatus permissionGranted;
+    LocationPermission permission;
 
     // 位置情報サービスが有効か確認
-    serviceEnabled = await _location.serviceEnabled();
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      serviceEnabled = await _location.requestService();
-      if (!serviceEnabled) {
-        throw Exception('位置情報サービスが無効です');
-      }
+      throw Exception('位置情報サービスが無効です。デバイスの設定で有効にしてください。');
     }
 
     // 位置情報の許可を確認
-    permissionGranted = await _location.hasPermission();
-    if (permissionGranted == PermissionStatus.denied) {
-      permissionGranted = await _location.requestPermission();
-      if (permissionGranted != PermissionStatus.granted) {
-        throw Exception('位置情報の許可が得られませんでした');
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        throw Exception('位置情報の許可が拒否されました');
       }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception('位置情報の許可が永久に拒否されています。設定から許可してください。');
     }
 
     // 現在地を取得
     try {
-      final locationData = await _location.getLocation();
-      return locationData;
+      final position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+      return position;
     } catch (e) {
       throw Exception('現在地の取得に失敗しました: $e');
     }
@@ -42,10 +41,7 @@ class LocationService {
       final locations = await geocoding.locationFromAddress(address);
       if (locations.isNotEmpty) {
         final location = locations.first;
-        return {
-          'latitude': location.latitude,
-          'longitude': location.longitude,
-        };
+        return {'latitude': location.latitude, 'longitude': location.longitude};
       } else {
         throw Exception('指定された住所が見つかりませんでした');
       }
@@ -55,11 +51,9 @@ class LocationService {
   }
 
   // 緯度経度から住所を取得
-  Future<String> getAddressFromCoordinates(
-      double latitude, double longitude) async {
+  Future<String> getAddressFromCoordinates(double latitude, double longitude) async {
     try {
-      final placemarks =
-          await geocoding.placemarkFromCoordinates(latitude, longitude);
+      final placemarks = await geocoding.placemarkFromCoordinates(latitude, longitude);
       if (placemarks.isNotEmpty) {
         final placemark = placemarks.first;
         return '${placemark.administrativeArea ?? ''}${placemark.locality ?? ''}${placemark.thoroughfare ?? ''}';

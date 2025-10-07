@@ -1,0 +1,11 @@
+{
+  "name": "solo-dining-api",
+  "version": "1.0.0",
+  "description": "Serverless functions for Solo Dining app",
+  "main": "places.js",
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.x"
+  }
+}

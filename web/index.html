@@ -32,6 +32,15 @@
 
   <title>Solo Dining - 一人飯お店探し</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Google Maps JavaScript API -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCRzVdseeb-aHq5-ANFmUoys5ymgeX3t4A&libraries=places&callback=initMap" async defer></script>
+  <script>
+    // Google Maps API 初期化
+    window.initMap = function() {
+      console.log('Google Maps API loaded');
+    };
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

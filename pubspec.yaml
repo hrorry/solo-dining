@@ -38,8 +38,9 @@ dependencies:
   # Google Maps integration
   google_maps_flutter: ^2.5.0
   
-  # Location services
-  location: ^5.0.3
+  # Location services (Web対応)
+  geolocator: ^13.0.2
+  geolocator_web: ^4.1.1
   geocoding: ^3.0.0
   
   # HTTP requests for API calls

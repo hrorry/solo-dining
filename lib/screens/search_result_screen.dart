@@ -70,7 +70,7 @@ class SearchResultScreen extends StatelessWidget {
                     leading: CircleAvatar(
                       backgroundColor: Theme.of(context).colorScheme.primary,
                       child: Text(
-                        '${restaurant['rating']}',
+                        '${restaurant['rating'] ?? 0.0}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -78,32 +78,43 @@ class SearchResultScreen extends StatelessWidget {
                       ),
                     ),
                     title: Text(
-                      restaurant['name'] as String,
+                      restaurant['name'] as String? ?? '不明',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 4),
-                        Text(restaurant['address'] as String),
+                        Text(restaurant['address'] as String? ?? '住所不明'),
                         const SizedBox(height: 8),
-                        Text(
-                          restaurant['description'] as String,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 4,
-                          children: (restaurant['tags'] as List<String>)
-                              .map((tag) => Chip(
-                                    label: Text(
-                                      tag,
-                                      style: const TextStyle(fontSize: 10),
-                                    ),
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  ))
-                              .toList(),
+                        Row(
+                          children: [
+                            Icon(Icons.star, size: 16, color: Colors.orange),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${restaurant['rating'] ?? 0.0}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '(${restaurant['user_ratings_total'] ?? 0}件)',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            if (restaurant['is_open_now'] == true) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  '営業中',
+                                  style: TextStyle(color: Colors.white, fontSize: 10),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
