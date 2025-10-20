@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
 import '../services/places_service.dart';
+import '../services/gemini_service.dart';
 import 'search_result_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -15,11 +16,13 @@ class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _locationController = TextEditingController();
   final LocationService _locationService = LocationService();
   final PlacesService _placesService = PlacesService();
+  final GeminiService _geminiService = GeminiService();
 
   bool _isLoadingLocation = false;
   bool _isSearching = false;
   Position? _currentLocation;
   String? _currentAddress;
+  String _searchMode = 'gemini_only'; // 'places_gemini' or 'gemini_only'
 
   @override
   void dispose() {
@@ -95,27 +98,34 @@ class _SearchScreenState extends State<SearchScreen> {
     try {
       List<Map<String, dynamic>> restaurants = [];
 
-      // Vercel Function経由で統一的にPlaces APIを呼び出す
-      if (_currentLocation != null) {
-        // 現在地を使って検索
-        restaurants = await _placesService.searchNearbyRestaurants(
-          latitude: _currentLocation!.latitude,
-          longitude: _currentLocation!.longitude,
-          radius: 1500,
-        );
+      if (_searchMode == 'gemini_only') {
+        // Geminiのみで検索
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gemini AIで店舗を検索中...'), duration: Duration(seconds: 2)));
+
+        restaurants = await _geminiService.searchRestaurantsByGeminiOnly(query);
       } else {
-        // 入力された場所から緯度経度を取得して検索
-        try {
-          final coordinates = await _locationService.getCoordinatesFromAddress(query);
+        // Places API + Gemini分析
+        // Vercel Function経由で統一的にPlaces APIを呼び出す
+        if (_currentLocation != null) {
+          // 現在地を使って検索（Nearby Search）
           restaurants = await _placesService.searchNearbyRestaurants(
-            latitude: coordinates['latitude']!,
-            longitude: coordinates['longitude']!,
-            radius: 2000,
+            latitude: _currentLocation!.latitude,
+            longitude: _currentLocation!.longitude,
+            radius: 1500,
           );
-        } catch (e) {
-          // テキスト検索にフォールバック（TODO: 後で実装）
-          print('住所から緯度経度への変換に失敗: $e');
-          rethrow;
+        } else {
+          // テキスト検索を使用（住所、駅名、店名など）
+          restaurants = await _placesService.searchRestaurantsByText(query: query);
+        }
+
+        if (restaurants.isNotEmpty) {
+          // Gemini AIで一人食事向け分析
+          try {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('AIで分析中...'), duration: Duration(seconds: 2)));
+            restaurants = await _geminiService.analyzeSoloFriendlyRestaurants(restaurants);
+          } catch (e) {
+            print('Gemini analysis failed, using original data: $e');
+          }
         }
       }
 
@@ -231,7 +241,65 @@ class _SearchScreenState extends State<SearchScreen> {
                 onSubmitted: (_) => _searchRestaurants(),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
+
+              // 検索モード切り替え
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFAF8F3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE8DCC8), width: 1),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '検索モード',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF8B7355)),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ChoiceChip(
+                            label: const Text('Places API + AI分析', style: TextStyle(fontSize: 12)),
+                            selected: _searchMode == 'places_gemini',
+                            onSelected: (selected) {
+                              if (selected) {
+                                setState(() {
+                                  _searchMode = 'places_gemini';
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ChoiceChip(
+                            label: const Text('Geminiのみ', style: TextStyle(fontSize: 12)),
+                            selected: _searchMode == 'gemini_only',
+                            onSelected: (selected) {
+                              if (selected) {
+                                setState(() {
+                                  _searchMode = 'gemini_only';
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _searchMode == 'places_gemini' ? '✓ Google Mapsの実データ + AI分析' : '✓ Gemini AIが店舗を提案',
+                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
 
               // 検索ボタン
               ElevatedButton(

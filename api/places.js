@@ -14,19 +14,25 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { latitude, longitude, radius = 1500, type = 'restaurant' } = req.query;
+  const { latitude, longitude, radius = 1500, type = 'restaurant', query } = req.query;
   const apiKey = process.env.PLACES_API_KEY;
-
-  if (!latitude || !longitude) {
-    return res.status(400).json({ error: 'latitude and longitude are required' });
-  }
 
   if (!apiKey) {
     return res.status(500).json({ error: 'PLACES_API_KEY not configured' });
   }
 
-  // Google Places API Nearby Search
-  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${radius}&type=${type}&key=${apiKey}&language=ja`;
+  let url;
+
+  // queryパラメータがある場合はText Search、なければNearby Search
+  if (query) {
+    // Google Places API Text Search
+    url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}+restaurant&type=${type}&key=${apiKey}&language=ja`;
+  } else if (latitude && longitude) {
+    // Google Places API Nearby Search
+    url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${radius}&type=${type}&key=${apiKey}&language=ja`;
+  } else {
+    return res.status(400).json({ error: 'Either query or (latitude and longitude) is required' });
+  }
 
   try {
     // httpsモジュールを使ってリクエスト（Node.js互換）
@@ -58,22 +64,26 @@ module.exports = async (req, res) => {
       });
     }
 
-    // レスポンスを整形
+    // レスポンスを整形（Nearby SearchとText Searchで共通）
     const restaurants = (json.results || []).map(place => ({
       place_id: place.place_id || '',
       name: place.name || '不明',
-      address: place.vicinity || '住所不明',
+      vicinity: place.vicinity || place.formatted_address || '住所不明',
+      formatted_address: place.formatted_address || place.vicinity || '住所不明',
       rating: place.rating || 0.0,
       user_ratings_total: place.user_ratings_total || 0,
       latitude: place.geometry?.location?.lat || 0,
       longitude: place.geometry?.location?.lng || 0,
+      types: place.types || [],
       photos: (place.photos || []).map(photo => ({
         photo_reference: photo.photo_reference,
         width: photo.width,
         height: photo.height,
       })),
       price_level: place.price_level || 0,
-      is_open_now: place.opening_hours?.open_now || false,
+      opening_hours: place.opening_hours ? {
+        open_now: place.opening_hours.open_now || false,
+      } : null,
     }));
 
     res.status(200).json({

@@ -52,23 +52,34 @@ class PlacesService {
     }
   }
 
-  // テキスト検索で飲食店を検索
-  // 現状はsearchNearbyRestaurantsを使うように実装
+  // テキスト検索で飲食店を検索（Vercel Function経由）
   Future<List<Map<String, dynamic>>> searchRestaurantsByText({
     required String query,
-    double? latitude,
-    double? longitude,
   }) async {
-    // TODO: テキスト検索用のエンドポイントを別途実装
-    // 今は近隣検索で代用
-    if (latitude != null && longitude != null) {
-      return searchNearbyRestaurants(
-        latitude: latitude,
-        longitude: longitude,
-        radius: 5000,
-      );
-    } else {
-      throw Exception('位置情報が必要です');
+    final url = Uri.parse(
+      '${_baseUrl}/api/places?query=${Uri.encodeComponent(query)}',
+    );
+
+    try {
+      print('Text search requesting: $url');
+      final response = await http.get(url);
+      print('Response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['status'] == 'success') {
+          final results = data['results'] as List;
+          return results.map((place) => place as Map<String, dynamic>).toList();
+        } else {
+          throw Exception('API Error: ${data['error'] ?? 'Unknown error'}');
+        }
+      } else {
+        throw Exception('HTTP Error: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in searchRestaurantsByText: $e');
+      throw Exception('テキスト検索に失敗しました: $e');
     }
   }
 }
