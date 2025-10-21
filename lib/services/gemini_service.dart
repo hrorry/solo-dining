@@ -24,20 +24,15 @@ class GeminiService {
       throw Exception('GEMINI_API_KEY not found. Set it in .env file or build environment');
     }
 
-    _model = GenerativeModel(
-      model: 'gemini-flash-latest',
-      apiKey: finalApiKey,
-    );
+    _model = GenerativeModel(model: 'gemini-flash-latest', apiKey: finalApiKey);
   }
 
   /// Gemini APIの動作確認用テストメソッド
   Future<String> testConnection() async {
     try {
       print('Testing Gemini API connection...');
-      
-      final response = await _model.generateContent([
-        Content.text('Hello! Please respond with a simple greeting.')
-      ]);
+
+      final response = await _model.generateContent([Content.text('Hello! Please respond with a simple greeting.')]);
 
       final responseText = response.text;
       print('Gemini response: $responseText');
@@ -45,7 +40,7 @@ class GeminiService {
       return responseText ?? 'No response received';
     } catch (e) {
       print('Gemini API detailed error: $e');
-      
+
       if (e.toString().contains('API_KEY')) {
         throw Exception('APIキーの問題: $e');
       } else if (e.toString().contains('quota')) {
@@ -59,9 +54,7 @@ class GeminiService {
   }
 
   /// 一人食事向け店舗分析（Places APIデータ使用）
-  Future<List<Map<String, dynamic>>> analyzeSoloFriendlyRestaurants(
-    List<Map<String, dynamic>> restaurants,
-  ) async {
+  Future<List<Map<String, dynamic>>> analyzeSoloFriendlyRestaurants(List<Map<String, dynamic>> restaurants) async {
     try {
       // Places APIのデータを整形
       final restaurantsData = restaurants.map((r) {
@@ -77,7 +70,8 @@ class GeminiService {
       }).toList();
 
       // Geminiに送るプロンプト
-      final prompt = '''
+      final prompt =
+          '''
 あなたは一人食事の専門家です。以下の店舗情報を分析して、一人食事に適しているかを評価してください。
 
 【分析観点】
@@ -114,9 +108,7 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
 
       print('Sending to Gemini...');
 
-      final response = await _model.generateContent([
-        Content.text(prompt)
-      ]);
+      final response = await _model.generateContent([Content.text(prompt)]);
 
       final responseText = response.text ?? '';
       print('Gemini response received');
@@ -127,12 +119,7 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
       print('Gemini analysis error: $e');
       // エラー時は元のデータにデフォルト値を追加して返す
       return restaurants.map((r) {
-        return {
-          ...r,
-          'solo_score': 50,
-          'reason': '分析データを取得できませんでした',
-          'tags': [],
-        };
+        return {...r, 'solo_score': 50, 'reason': '分析データを取得できませんでした', 'tags': []};
       }).toList();
     }
   }
@@ -140,10 +127,52 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
   /// Geminiのみで店舗検索（Places API不使用）
   Future<List<Map<String, dynamic>>> searchRestaurantsByGeminiOnly(String location) async {
     try {
-      final prompt = '''
-あなたは地域の飲食店に詳しい専門家です。「$location」付近で一人飲みに適したお店を10件教えてください。
+      final prompt =
+          '''
+あなたは地域の飲食店に詳しい専門家です。
 
-【出力形式】
+以下のルールに従って「$location周辺のお店」を最小10件、最大20件教えてください。
+
+# 探し方
+
+- Googleマップ検索で「カウンター_$location」で探す
+- ファーストインプレッションは店名と写真ふざけてる店名は避けがち（酒ト唄エバ心ナンチャラとか、人生酒場とか）
+- 日本語は3～5文字くらいが好みかも
+- カウンター、メニュー、料理の写真で全体的に好みか判断
+- 気になる感じの店があったら深堀りしていく口コミはGoogleを参照（新着順何個か見る＞低評価の内容）※★の数より口コミの質
+- メニュー写真はグルメサイト（食べログ、ホットペッパー）で確認
+- 内観、外観、料理の確認補助をインスタでする感じで見てます
+- 更に気になる場合は、Googleストリートビューで周辺もちょっと歩いてみる（繁華街すぎると行きにくい）
+
+## 良い条件
+
+- メニューが手書き（風）のページがある
+- カウンターとテーブル席の割合が同じくらいかそれ以下（テーブルが多いと大人数向け店な感じする）
+- 何か1つでもこだわりがありそうなところ（「映え」へのこだわりは除く）
+- 逆にホットペッパー、食べログに載ってない（Googleのみ）
+- 創作しすぎてない料理
+- 客の投稿写真がちょっとヘタ
+- 照明が眩しくない
+- クッション性のあるカウンター椅子
+- 歩いて行ける範囲だったら最高。タクシーなら1メーターが理想
+
+## 除外条件
+
+- 即席な作りの店舗
+- インスタの投稿が多い（＝映えるので味が疎かになっている可能性が高い、客層が若い、PR）
+- 外観張り切りすぎてる
+- コンクリート打ちっぱなし系
+- メニューより外観内観の投稿が多い
+- 最近できた店（客層未知、情報少ない→開拓タイプには良いかも）
+- 店舗が狭すぎると常連客との絡みが濃そう（15～20坪くらい？）それを良しとする場合もある
+
+## NG条件
+
+- フリーWi－Fiないのに自分の携帯からオーダーするタイプ
+- LINE友達追加しないと注文できない仕様
+- トイレが汚い
+
+# 出力形式
 以下のJSON配列形式で返してください：
 [
   {
@@ -166,9 +195,7 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
 
       print('Sending Gemini-only search request...');
 
-      final response = await _model.generateContent([
-        Content.text(prompt)
-      ]);
+      final response = await _model.generateContent([Content.text(prompt)]);
 
       final responseText = response.text ?? '';
       print('Gemini-only search response received');
@@ -183,10 +210,13 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
 
   /// 店舗データをプロンプト用にフォーマット
   String _formatRestaurantsForPrompt(List<Map<String, dynamic>> restaurants) {
-    return restaurants.asMap().entries.map((entry) {
-      final index = entry.key + 1;
-      final r = entry.value;
-      return '''
+    return restaurants
+        .asMap()
+        .entries
+        .map((entry) {
+          final index = entry.key + 1;
+          final r = entry.value;
+          return '''
 店舗$index:
 - place_id: ${r['place_id']}
 - 店名: ${r['name']}
@@ -195,18 +225,16 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
 - タイプ: ${(r['types'] as List).join(', ')}
 - 営業状態: ${r['is_open_now'] ? '営業中' : '営業時間外'}
 ''';
-    }).join('\n');
+        })
+        .join('\n');
   }
 
   /// Geminiの応答をパース（Places APIデータ使用時）
-  List<Map<String, dynamic>> _parseGeminiResponse(
-    String responseText,
-    List<Map<String, dynamic>> originalRestaurants,
-  ) {
+  List<Map<String, dynamic>> _parseGeminiResponse(String responseText, List<Map<String, dynamic>> originalRestaurants) {
     try {
       // JSONブロックを抽出（```json ... ``` で囲まれている場合に対応）
       String jsonText = responseText.trim();
-      
+
       // マークダウンのコードブロックを除去
       if (jsonText.contains('```json')) {
         final start = jsonText.indexOf('```json') + 7;
@@ -224,20 +252,13 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
 
       // JSON配列をパース
       final List<dynamic> analysisResults = json.decode(jsonText);
-      
+
       // 元のrestaurantsデータに解析結果をマージ
       return originalRestaurants.map((restaurant) {
         final placeId = restaurant['place_id'];
-        
+
         // 対応する解析結果を探す
-        final analysis = analysisResults.firstWhere(
-          (a) => a['place_id'] == placeId,
-          orElse: () => {
-            'solo_score': 50,
-            'reason': '分析結果がありません',
-            'tags': [],
-          },
-        );
+        final analysis = analysisResults.firstWhere((a) => a['place_id'] == placeId, orElse: () => {'solo_score': 50, 'reason': '分析結果がありません', 'tags': []});
 
         return {
           ...restaurant,
@@ -249,15 +270,10 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
     } catch (e) {
       print('JSON parse error: $e');
       print('Response text: $responseText');
-      
+
       // パースエラー時はデフォルト値を返す
       return originalRestaurants.map((r) {
-        return {
-          ...r,
-          'solo_score': 50,
-          'reason': 'JSON解析エラー',
-          'tags': [],
-        };
+        return {...r, 'solo_score': 50, 'reason': 'JSON解析エラー', 'tags': []};
       }).toList();
     }
   }
@@ -267,7 +283,7 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
     try {
       // JSONブロックを抽出
       String jsonText = responseText.trim();
-      
+
       // マークダウンのコードブロックを除去
       if (jsonText.contains('```json')) {
         final start = jsonText.indexOf('```json') + 7;
@@ -285,7 +301,7 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
 
       // JSON配列をパース
       final List<dynamic> results = json.decode(jsonText);
-      
+
       // データ整形
       return results.map((r) {
         return {
