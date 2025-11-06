@@ -21,7 +21,9 @@ class GeminiService {
     final finalApiKey = apiKey.isNotEmpty ? apiKey : (envApiKey ?? '');
 
     if (finalApiKey.isEmpty) {
-      throw Exception('GEMINI_API_KEY not found. Set it in .env file or build environment');
+      throw Exception(
+        'GEMINI_API_KEY not found. Set it in .env file or build environment',
+      );
     }
 
     _model = GenerativeModel(model: 'gemini-flash-latest', apiKey: finalApiKey);
@@ -32,7 +34,9 @@ class GeminiService {
     try {
       print('Testing Gemini API connection...');
 
-      final response = await _model.generateContent([Content.text('Hello! Please respond with a simple greeting.')]);
+      final response = await _model.generateContent([
+        Content.text('Hello! Please respond with a simple greeting.'),
+      ]);
 
       final responseText = response.text;
       print('Gemini response: $responseText');
@@ -54,7 +58,9 @@ class GeminiService {
   }
 
   /// 一人食事向け店舗分析（Places APIデータ使用）
-  Future<List<Map<String, dynamic>>> analyzeSoloFriendlyRestaurants(List<Map<String, dynamic>> restaurants) async {
+  Future<List<Map<String, dynamic>>> analyzeSoloFriendlyRestaurants(
+    List<Map<String, dynamic>> restaurants,
+  ) async {
     try {
       // Places APIのデータを整形
       final restaurantsData = restaurants.map((r) {
@@ -119,17 +125,26 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
       print('Gemini analysis error: $e');
       // エラー時は元のデータにデフォルト値を追加して返す
       return restaurants.map((r) {
-        return {...r, 'solo_score': 50, 'reason': '分析データを取得できませんでした', 'tags': []};
+        return {
+          ...r,
+          'solo_score': 50,
+          'reason': '分析データを取得できませんでした',
+          'tags': [],
+        };
       }).toList();
     }
   }
 
   /// Geminiのみで店舗検索（Places API不使用）
-  Future<List<Map<String, dynamic>>> searchRestaurantsByGeminiOnly(String location) async {
+  Future<List<Map<String, dynamic>>> searchRestaurantsByGeminiOnly(
+    String location,
+  ) async {
     try {
       final prompt =
           '''
 あなたは地域の飲食店に詳しい専門家です。
+
+**重要**: 必ず実在する店舗のみを返してください。架空の店舗や想像で作った店舗は絶対に含めないでください。
 
 以下のルールに従って「$location周辺のお店」を最小10件、最大20件教えてください。
 
@@ -186,10 +201,11 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
   }
 ]
 
-**重要**: 
+**重要**:
 - JSON配列のみを返してください。他の説明文は不要です。
 - 必ず10件のデータを含めてください。
-- 実在する店舗を優先してください。
+- **実在する店舗のみを返してください。架空の店舗や想像で作った店舗は絶対に含めないでください。**
+- 店舗名、住所は実際にGoogleマップで確認できる実在のものにしてください。
 - solo_scoreは必ず0-100の整数にしてください。
 ''';
 
@@ -230,7 +246,10 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
   }
 
   /// Geminiの応答をパース（Places APIデータ使用時）
-  List<Map<String, dynamic>> _parseGeminiResponse(String responseText, List<Map<String, dynamic>> originalRestaurants) {
+  List<Map<String, dynamic>> _parseGeminiResponse(
+    String responseText,
+    List<Map<String, dynamic>> originalRestaurants,
+  ) {
     try {
       // JSONブロックを抽出（```json ... ``` で囲まれている場合に対応）
       String jsonText = responseText.trim();
@@ -258,7 +277,10 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
         final placeId = restaurant['place_id'];
 
         // 対応する解析結果を探す
-        final analysis = analysisResults.firstWhere((a) => a['place_id'] == placeId, orElse: () => {'solo_score': 50, 'reason': '分析結果がありません', 'tags': []});
+        final analysis = analysisResults.firstWhere(
+          (a) => a['place_id'] == placeId,
+          orElse: () => {'solo_score': 50, 'reason': '分析結果がありません', 'tags': []},
+        );
 
         return {
           ...restaurant,

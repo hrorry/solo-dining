@@ -55,6 +55,9 @@ dependencies:
   # Environment variables
   flutter_dotenv: ^5.1.0
 
+  # URL launcher for opening external apps
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

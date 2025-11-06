@@ -1,26 +1,51 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class RestaurantDetailScreen extends StatelessWidget {
   final Map<String, dynamic> restaurant;
 
-  const RestaurantDetailScreen({
-    super.key,
-    required this.restaurant,
-  });
+  const RestaurantDetailScreen({super.key, required this.restaurant});
+
+  // Google Mapsで店舗位置を開く
+  Future<void> _openGoogleMaps() async {
+    final latitude = restaurant['latitude'];
+    final longitude = restaurant['longitude'];
+    final placeId = restaurant['place_id'];
+
+    if (latitude == null || longitude == null) {
+      throw Exception('位置情報が取得できませんでした');
+    }
+
+    // Google Maps URLを生成（place_idがあればより正確）
+    final Uri mapsUrl;
+    if (placeId != null && placeId.toString().isNotEmpty) {
+      mapsUrl = Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude&query_place_id=$placeId',
+      );
+    } else {
+      mapsUrl = Uri.parse('https://maps.google.com/?q=$latitude,$longitude');
+    }
+
+    if (await canLaunchUrl(mapsUrl)) {
+      await launchUrl(mapsUrl, mode: LaunchMode.externalApplication);
+    } else {
+      throw Exception('地図アプリを開けませんでした');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(restaurant['name']),
+        title: Text(restaurant['name'] as String? ?? '店舗詳細'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
         actions: [
           IconButton(
             icon: const Icon(Icons.favorite_border),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('お気に入りに追加しました')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('お気に入りに追加しました')));
             },
           ),
         ],
@@ -41,9 +66,11 @@ class RestaurantDetailScreen extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 30,
-                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
                           child: Text(
-                            '${restaurant['rating']}',
+                            '${restaurant['rating'] ?? 0.0}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 20,
@@ -57,12 +84,17 @@ class RestaurantDetailScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                restaurant['name'],
-                                style: Theme.of(context).textTheme.headlineSmall,
+                                restaurant['name'] as String? ?? '不明',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall,
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                restaurant['address'],
+                                restaurant['vicinity'] as String? ??
+                                    restaurant['formatted_address']
+                                        as String? ??
+                                    '住所不明',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                             ],
@@ -72,7 +104,9 @@ class RestaurantDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      restaurant['description'],
+                      restaurant['reason'] as String? ??
+                          restaurant['vicinity'] as String? ??
+                          '店舗情報',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                   ],
@@ -88,21 +122,20 @@ class RestaurantDetailScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '特徴',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+                    Text('特徴', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 4,
-                      children: (restaurant['tags'] as List<String>)
-                          .map((tag) => Chip(
-                                label: Text(tag),
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .secondaryContainer,
-                              ))
+                      children: (restaurant['tags'] as List<dynamic>? ?? [])
+                          .map(
+                            (tag) => Chip(
+                              label: Text(tag.toString()),
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.secondaryContainer,
+                            ),
+                          )
                           .toList(),
                     ),
                   ],
@@ -135,7 +168,9 @@ class RestaurantDetailScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
@@ -155,21 +190,30 @@ class RestaurantDetailScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // アクションボタン
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('地図アプリを開きます（Phase 2で実装予定）')),
-                  );
-                },
-                icon: const Icon(Icons.map),
-                label: const Text('地図で見る'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+            // 緯度経度がある場合のみ地図ボタンを表示
+            if (restaurant['latitude'] != null &&
+                restaurant['longitude'] != null)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    try {
+                      await _openGoogleMaps();
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('エラーが発生しました: $e')),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.map),
+                  label: const Text('地図で見る'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                 ),
               ),
-            ),
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
