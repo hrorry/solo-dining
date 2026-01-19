@@ -24,7 +24,7 @@ class GeminiService {
       throw Exception('GEMINI_API_KEY not found. Set it in .env file or build environment');
     }
 
-    _model = GenerativeModel(model: 'gemini-flash-latest', apiKey: finalApiKey);
+    _model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: finalApiKey);
   }
 
   /// Gemini APIの動作確認用テストメソッド
