@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
 
 class GeminiService {
   late final GenerativeModel _model;
+  late final String _apiKey;
 
   GeminiService() {
     // ビルド時の環境変数をチェック（Vercel用）
@@ -24,6 +26,7 @@ class GeminiService {
       throw Exception('GEMINI_API_KEY not found. Set it in .env file or build environment');
     }
 
+    _apiKey = finalApiKey;
     _model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: finalApiKey);
   }
 
@@ -124,7 +127,7 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
     }
   }
 
-  /// Geminiのみで店舗検索（Places API不使用）
+  /// Geminiのみで店舗検索（Google検索グラウンディング使用）
   Future<List<Map<String, dynamic>>> searchRestaurantsByGeminiOnly(String location) async {
     try {
       final prompt =
@@ -132,7 +135,7 @@ ${_formatRestaurantsForPrompt(restaurantsData)}
 あなたは34歳のおじさんぽい性格をした女性です。
 $locationに移住して5年が経ちます。
 一人飲みが好きで、店選びには強いこだわりがあります。
-店を探す際は、Google検索とGoogle Mapや食べログなどのグルメサイトの情報を駆使して、以下の条件にあったお店を見つけてください。
+Google検索の結果を活用して、以下の条件にあったお店を見つけてください。
 
 # 以下の条件に合う店をピックアップしてください
 - 一人向けメニューがある
@@ -176,17 +179,45 @@ $locationに移住して5年が経ちます。
 - solo_scoreは必ず0-100の整数にしてください。
 ''';
 
-      print('Sending Gemini-only search request...');
+      print('Sending Gemini search request with Google Search grounding...');
 
-      final response = await _model.generateContent([Content.text(prompt)]);
+      // REST APIで直接呼び出し（Google検索グラウンディング対応）
+      final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_apiKey',
+      );
 
-      final responseText = response.text ?? '';
-      print('Gemini-only search response received');
+      final requestBody = json.encode({
+        'contents': [
+          {
+            'parts': [
+              {'text': prompt}
+            ]
+          }
+        ],
+        'tools': [
+          {'google_search': {}}
+        ],
+      });
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: requestBody,
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Gemini API error: ${response.statusCode} ${response.body}');
+      }
+
+      final responseJson = json.decode(response.body);
+      final responseText = responseJson['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
+
+      print('Gemini grounded search response received');
 
       // JSON解析
       return _parseGeminiOnlyResponse(responseText);
     } catch (e) {
-      print('Gemini-only search error: $e');
+      print('Gemini search error: $e');
       throw Exception('Gemini検索に失敗しました: $e');
     }
   }
